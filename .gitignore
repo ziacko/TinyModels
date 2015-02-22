@@ -1,0 +1,7 @@
+*.sdf
+*.tlog
+dependencies/FBX SDK/2015.1/samples/
+*.sln
+*.idb
+*.vcxproj
+*.filters
