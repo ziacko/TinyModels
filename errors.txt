@@ -1,0 +1,40 @@
+include/TinyModels.h:281:2: error: invalid use of template-name ‘TMeshNode’ without an argument list
+  TMeshNode* GetMeshByName(const char* Name)
+  ^
+include/TinyModels.h:291:2: error: invalid use of template-name ‘TLightNode’ without an argument list
+  TLightNode* GetLightByName(const char* Name)
+  ^
+include/TinyModels.h:301:2: error: invalid use of template-name ‘TCameraNode’ without an argument list
+  TCameraNode* GetCameraByName(const char* Name)
+  ^
+include/TinyModels.h:311:2: error: invalid use of template-name ‘TMaterial’ without an argument list
+  TMaterial* GetMaterialByName(const char* Name)
+  ^
+include/TinyModels.h:321:2: error: invalid use of template-name ‘TAnimation’ without an argument list
+  TAnimation* GetAnimationByName(const char* Name)
+  ^
+include/TinyModels.h:331:2: error: invalid use of template-name ‘TMeshNode’ without an argument list
+  TMeshNode* GetMeshByIndex(unsigned int Index)
+  ^
+include/TinyModels.h:346:2: error: invalid use of template-name ‘TLightNode’ without an argument list
+  TLightNode* GetLightByIndex(unsigned int Index)
+  ^
+include/TinyModels.h:361:2: error: invalid use of template-name ‘TCameraNode’ without an argument list
+  TCameraNode* GetCameraByIndex(unsigned int Index)
+  ^
+include/TinyModels.h:376:2: error: invalid use of template-name ‘TMaterial’ without an argument list
+  TMaterial* GetMaterialByIndex(unsigned int Index)
+  ^
+include/TinyModels.h:391:2: error: invalid use of template-name ‘TAnimation’ without an argument list
+  TAnimation* GetAnimationByIndex(unsigned int Index)
+  ^
+include/TinyModels.h:406:2: error: invalid use of template-name ‘TMeshNode’ without an argument list
+  TMeshNode* 
+  ^
+include/TinyModels.h:440:3: error: ‘FBXScene’ does not name a type
+   FBXScene* CurrentScene;
+   ^
+include/TinyModels.h:442:21: error: template argument 1 is invalid
+   std::vector<TNode*> Bones;
+                     ^
+include/TinyModels.h:442:21: error: template argument 2 is invalid

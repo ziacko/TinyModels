@@ -35,7 +35,6 @@ FbxString GetAttributeTypeName(FbxNodeAttribute::EType Type)
 	case FbxNodeAttribute::eLODGroup: return "lodgroup";
 	case FbxNodeAttribute::eSubDiv: return "subdiv";
 	default: return "unknown";
-
 	}
 }
 
@@ -78,7 +77,7 @@ void PrintNode(FbxNode* GivenNode)
 		PrintNode(GivenNode->GetChild(Iter));
 	}
 	printf("Polygon count: %i \n", GivenNode->GetMesh()->GetPolygonCount());
-	printf("UV count: %s \n", GivenNode->GetMesh()->GetElementUVCount(FbxLayerElement::eUV));
+	printf("UV count: %i \n", GivenNode->GetMesh()->GetElementUVCount(FbxLayerElement::eUV));
 	NumTabs--;
 	PrintTabs();
 	printf("</node>\n");
