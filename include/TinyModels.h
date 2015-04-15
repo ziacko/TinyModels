@@ -15,11 +15,18 @@
 #define	DEG2RAD = 0.01745329251994329577f;
 #define	RAD2DEG = 57.2957795130823208768f;
 
-#define IDENTITYMATRIX = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}
+#define IDENTITYMATRIX = 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1;
+#define INVERTZMATRIX = 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1;
 inline int  Max(int x, int y){ return (x > y) ? x : y; }
 inline int  Min(int x, int y){ return (x < y) ? x : y; }
 inline float  Maxf(float x, float y){ return (x > y) ? x : y; }
 inline float  Minf(float x, float y){ return (x < y) ? x : y; }
+
+double* MatByMat(double Mat1[16], double Mat2[16])
+{
+
+}
+
 
 template<typename Type>
 struct TVertex
@@ -122,8 +129,8 @@ public:
 	Type LocalTransform[16];
 	Type GlobalTransform[16];
 	
-	TNode* Parent;
-	std::vector<TNode*> Children;
+	TNode<Type>* Parent;
+	std::vector<TNode<Type>*> Children;
 	void* UserData;
 };
 
@@ -593,11 +600,11 @@ struct TScene
 			NewNode->GetNodeAttribute()->GetAttributeType() ==
 			FbxNodeAttribute::eSkeleton)
 		{
-			unsigned int Index = ModelManager::GetInstance()->GetImportAssistor()->BoneIndexMap.size();
+			unsigned int Index = ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap.size();
 
 			char Name[255];
 			strncpy(Name, NewNode->GetName(), 255);
-			ModelManager::GetImportAssistor()->BoneIndexMap[Name].second = Index;
+			ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap[Name] = Index;
 
 			for (unsigned int ChildIter = 0; ChildIter < NewNode->GetChildCount(); ChildIter++)
 			{
@@ -632,8 +639,8 @@ struct TScene
 
 		Scene = FbxScene::Create(Manager, "");
 
-		unsigned int FileMajor, FileMinor, FileRevision;
-		unsigned int SDKMajor, SDKMinor, SDKRevision;
+		int FileMajor, FileMinor, FileRevision;
+		int SDKMajor, SDKMinor, SDKRevision;
 		unsigned int Iter;
 		bool Status;
 
@@ -664,12 +671,19 @@ struct TScene
 
 		if (RootNode)
 		{
-			ModelManager::GetInstance()->GetImportAssistor()->CurrentScene = Scene;
+			ModelManager<Type>::GetInstance()->GetImportAssistor()->CurrentScene = Scene;
 
 			Root = new TNode<Type>();
 			strcpy(Root->Name, "root");
+			Type InvertZMatrix[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1 };
 
-			Root->GlobalTransform = Root->LocalTransform = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1 };
+			for (int i = 0; i < 16; i++)
+			{
+				Root->LocalTransform[i] = InvertZMatrix[i];
+				Root->GlobalTransform[i] = Root->LocalTransform[i];
+
+			}
+			
 
 			AmbientLight[0] = (Type)Scene->GetGlobalSettings().GetAmbientColor().mRed;
 			AmbientLight[1] = (Type)Scene->GetGlobalSettings().GetAmbientColor().mGreen;
@@ -686,17 +700,17 @@ struct TScene
 				ExtractObject(Root, (void*)RootNode->GetChild(Iter));
 			}
 
-			if (ModelManager::GetImportAssistor()->Bones.size() > 0)
+			if (ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones.size() > 0)
 			{
-				TSkeleton* Skeleton = new TSkeleton();
-				Skeleton->BoneCount = ModelManager::GetImportAssistor()->Bones.size();
+				TSkeleton<Type>* Skeleton = new TSkeleton<Type>();
+				Skeleton->BoneCount = ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones.size();
 				Skeleton->Nodes = new TNode<Type>*[Skeleton->BoneCount];
 				memset(Skeleton->Bones, 0, (sizeof(Type) * 16) * Skeleton->BoneCount);
 				memset(Skeleton->BindPoses, 0, (sizeof(Type) * 16) * Skeleton->BoneCount);
 
 				for (Iter = 0; Iter < Skeleton->BoneCount; Iter++)
 				{
-					Skeleton->Nodes[Iter] = ModelManager::GetImportAssistor()->Bones[Iter];
+					Skeleton->Nodes[Iter] = ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones[Iter];
 					Skeleton->Bones[Iter] = Skeleton->Nodes[Iter]->LocalTransform;
 				}
 
@@ -706,13 +720,13 @@ struct TScene
 			}
 		}
 		Manager->Destroy();
-		Path = FileName;
+		Path = (char*)FileName;
 	}
 
 	void ExtractObject(TNode<Type>* Parent, void* Object)
 	{
-		FbxNode<Type>* FBXNode = (FbxNode*)Object;
-		TNode TinyNode = nullptr;
+		FbxNode* FBXNode = (FbxNode*)Object;
+		TNode<Type>* TinyNode = nullptr;
 
 		FbxNodeAttribute::EType AttributeType;
 		unsigned int Iter;
@@ -737,13 +751,13 @@ struct TScene
 
 				case FbxNodeAttribute::eMesh:
 				{
-					TinyNode = new TMeshNode();
-					ExtractMesh((TMeshNode*)TinyNode, FBXNode);
+					TinyNode = new TMeshNode<Type>();
+					ExtractMesh((TMeshNode<Type>*)TinyNode, FBXNode);
 					if (strlen(FBXNode->GetName()) > 0)
 					{
 						strncpy(TinyNode->Name, FBXNode->GetName(), 255 - 1);
 					}
-					Meshes[TinyNode->Name] = (TMeshNode*)TinyNode;
+					Meshes[TinyNode->Name] = (TMeshNode<Type>*)TinyNode;
 					break;
 				}
 
@@ -760,27 +774,27 @@ struct TScene
 
 				case FbxNodeAttribute::eCamera:
 				{
-					TinyNode = new TCameraNode();
-					ExtractCamera((TCameraNode*)TinyNode, FBXNode);
+					TinyNode = new TCameraNode<Type>();
+					ExtractCamera((TCameraNode<Type>*)TinyNode, FBXNode);
 
 					if (strlen(FBXNode->GetName()) > 0)
 					{
-						strcpy(TinyNode->Name, FBXNode->GetName(), 254);
+						strcpy(TinyNode->Name, FBXNode->GetName());
 					}
-					Cameras[TinyNode.Name] = (TCameraNode*)TinyNode;
+					Cameras[TinyNode->Name] = (TCameraNode<Type>*)TinyNode;
 					break;
 				}
 
 				case FbxNodeAttribute::eLight:
 				{
-					TinyNode = new TLightNode();
-					ExtractLight((TLightNode*)TinyNode, FBXNode);
+					TinyNode = new TLightNode<Type>();
+					ExtractLight((TLightNode<Type>*)TinyNode, FBXNode);
 
 					if (strlen(FBXNode->GetName()) > 0)
 					{
 						strncpy(TinyNode->Name, FBXNode->GetName(), 254);
 					}
-					Lights[TinyNode->Name] = (TLightNode*)TinyNode;
+					Lights[TinyNode->Name] = (TLightNode<Type>*)TinyNode;
 					break;
 				}
 			}
@@ -788,8 +802,8 @@ struct TScene
 
 		if (TinyNode == nullptr)
 		{
-			TinyNode = new TNode();
-			if (strlen(FBXNode->GetNode()) > 0)
+			TinyNode = new TNode<Type>();
+			if (strlen(FBXNode->GetName()) > 0)
 			{
 				strncpy(TinyNode->Name, FBXNode->GetName(), 254);
 			}
@@ -798,7 +812,7 @@ struct TScene
 		Parent->Children.push_back(TinyNode);
 		TinyNode->Parent = Parent;
 
-		FbxAMatrix Local = ModelManager::GetImportAssistor()->Evaluator->GetNodeLocalTransform(FBXNode);
+		FbxAMatrix Local = ModelManager<Type>::GetInstance()->GetImportAssistor()->Evaluator->GetNodeLocalTransform(FBXNode);
 
 		FbxVector4 Row0 = Local.GetRow(0);
 		FbxVector4 Row1 = Local.GetRow(1);
@@ -810,7 +824,7 @@ struct TScene
 		TinyNode->LocalTransform[2] = Row0.mData[2];
 		TinyNode->LocalTransform[3] = Row0.mData[3];
 
-		for (unsigned int RowIter = 0; RowIter 4; RowIter++)
+		for (int RowIter = 0; RowIter 4; RowIter++)
 		{
 			for (int i = 0; i < 4; i++)
 			{
@@ -852,10 +866,10 @@ struct TScene
 		//TinyNode->GlobalTransform = TinyNode->LocalTransform * Parent->GlobalTransform;
 		if (IsBone)
 		{
-			ModelManager::GetImportAssistor()->Bones.push_back(TinyNode);
+			ModelManager<Type>::GetImportAssistor()->Bones.push_back(TinyNode);
 		}
 
-		for (Iter = 0; Iter < FBXNode->GetChildCount(); Iter++)
+		for (int Iter = 0; Iter < FBXNode->GetChildCount(); Iter++)
 		{
 			ExtractObject(TinyNode, (void*)FBXNode->GetChild(Iter));
 		}
@@ -2263,7 +2277,7 @@ struct TScene
 
 	TNode<Type>* Root;
 
-	char Path[255];
+	char* Path;
 	Type AmbientLight[4];
 
 	std::map<const char*, TMeshNode<Type>*> Meshes;
@@ -2305,7 +2319,7 @@ public:
 		return Assistor;
 	}
 
-	ModelManager* GetInstance()
+	static ModelManager* GetInstance()
 	{
 		if (ModelManager::Instance == nullptr)
 		{
