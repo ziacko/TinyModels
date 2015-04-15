@@ -1,0 +1,4 @@
+/usr/bin/ld: skipping incompatible ./dependencies/FBX_SDK/2015.1/lib/gcc4/x86/debug/libfbxsdk.so when searching for -lfbxsdk
+/usr/bin/ld: skipping incompatible ./dependencies/FBX_SDK/2015.1/lib/gcc4/x86/debug/libfbxsdk.a when searching for -lfbxsdk
+/usr/bin/ld: cannot find -lfbxsdk
+collect2: error: ld returned 1 exit status
