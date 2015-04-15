@@ -21,10 +21,6 @@ inline int  Min(int x, int y){ return (x < y) ? x : y; }
 inline float  Maxf(float x, float y){ return (x > y) ? x : y; }
 inline float  Minf(float x, float y){ return (x < y) ? x : y; }
 
-double* MatByMat(double Mat1[16], double Mat2[16])
-{
-
-}
 
 template <typename Type> class ModelManager;
 
@@ -74,18 +70,23 @@ struct TMaterial
 		TextureTypes_Count
 	};
 
-	TMaterial() : Ambient(0), Diffuse(0), Specular(0), Emissive(0)
+	TMaterial()
 	{
+		Ambient = new Type[4];
+		Diffuse = new Type[4];
+		Specular = new Type[4];
+		Emissive =  new Type[4];
+
 		memset(Name, 0, 255);
 		memset(TextureFileNames, 0, TextureTypes_Count * 255);
 		memset(TextureIDs, 0, TextureTypes_Count * (sizeof(unsigned int)));
 	}
 
 	char Name[255];
-	Type Ambient[4];
-	Type Diffuse[4];
-	Type Specular[4];
-	Type Emissive[4];
+	Type* Ambient;
+	Type* Diffuse;
+	Type* Specular;
+	Type* Emissive;
 
 	char TextureFileNames[TextureTypes_Count][255];
 	unsigned int TextureIDs[TextureTypes_Count];
@@ -104,8 +105,9 @@ public:
 		TCAMERA
 	};
 
-	TNode() : NodeType(TNODE), Parent(nullptr), UserData(nullptr), Name(0)
+	TNode() : NodeType(TNODE), Parent(nullptr), UserData(nullptr)
 	{
+		Name = 0;
 		for(unsigned int TransformIter = 0; TransformIter < 4; TransformIter++)
 		{
 			LocalTransform[TransformIter * 5] = 1;
@@ -126,7 +128,7 @@ public:
 	}
 
 	unsigned int NodeType;
-	char Name[255];
+	char* Name;
 	Type LocalTransform[16];
 	Type GlobalTransform[16];
 	
@@ -168,7 +170,7 @@ public:
 
 	TLightType LightType;
 	bool On;
-	Type Color;
+	Type Color[4];
 	
 	Type InnerAngle;
 	Type OuterAngle;
@@ -194,6 +196,7 @@ public:
 template<typename Type>
 class TKeyFrame
 {
+public:
 	TKeyFrame() : Key(0)
 	{
 		Rotation[3] = 1;
@@ -209,6 +212,7 @@ class TKeyFrame
 template<typename Type>
 class TTrack
 {
+public:
 	TTrack() : BoneIndex(0), KeyFrameCount(0), KeyFrames(nullptr){};
 	~TTrack(){};
 
@@ -221,6 +225,7 @@ class TTrack
 template<typename Type>
 struct TAnimation
 {
+public:
 	unsigned int TotalFrames() const
 	{
 		return EndFrame - StartFrame;
@@ -607,7 +612,7 @@ struct TScene
 			strncpy(Name, NewNode->GetName(), 255);
 			ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap[Name] = Index;
 
-			for (unsigned int ChildIter = 0; ChildIter < NewNode->GetChildCount(); ChildIter++)
+			for (int ChildIter = 0; ChildIter < NewNode->GetChildCount(); ChildIter++)
 			{
 				CollectBones((void*)NewNode->GetChild(ChildIter));
 			}
@@ -642,7 +647,7 @@ struct TScene
 
 		int FileMajor, FileMinor, FileRevision;
 		int SDKMajor, SDKMinor, SDKRevision;
-		unsigned int Iter;
+		int Iter;
 		bool Status;
 
 		FbxManager::GetFileFormatVersion(SDKMajor, SDKMinor, SDKRevision);
@@ -730,7 +735,7 @@ struct TScene
 		TNode<Type>* TinyNode = nullptr;
 
 		FbxNodeAttribute::EType AttributeType;
-		unsigned int Iter;
+		unsigned int Iter = 0;
 
 		bool IsBone = false;
 		if (FBXNode->GetNodeAttribute() != nullptr)
@@ -867,7 +872,7 @@ struct TScene
 		//TinyNode->GlobalTransform = TinyNode->LocalTransform * Parent->GlobalTransform;
 		if (IsBone)
 		{
-			ModelManager<Type>::GetImportAssistor()->Bones.push_back(TinyNode);
+			ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones.push_back(TinyNode);
 		}
 
 		for (int Iter = 0; Iter < FBXNode->GetChildCount(); Iter++)
@@ -1013,7 +1018,7 @@ struct TScene
 							{
 								unsigned int ID = UV->GetIndexArray().GetAt(ControlPointIndex);
 								FbxVector2 uv = UV->GetDirectArray().GetAt(ID);
-								Vertex.uv[0] = (Type)uv[0];
+								Vertex.UV[0] = (Type)uv[0];
 								Vertex.UV[1] = (Type)uv[1];
 								break;
 							}
@@ -1115,7 +1120,7 @@ struct TScene
 						}
 					}
 				}
-				VertexIndex[J] = AddVertGetIndex(Mesh->Vertices, Vertex);
+				VertexIndex[J] = AddVertReturnIndex(Mesh->Vertices, Vertex);
 				VertexID++;
 			}
 			Mesh->Indices.push_back(VertexIndex[0]);
@@ -1138,7 +1143,7 @@ struct TScene
 	void ExtractSkin(TMeshNode<Type>* Mesh, void* Node)
 	{
 		FbxGeometry* Geometry = (FbxGeometry*)Node;
-		int I, J, K;
+		unsigned int I, J, K;
 		unsigned int ClusterCount;
 		FbxCluster* Cluster;
 		char Name[255];
@@ -1162,7 +1167,7 @@ struct TScene
 				unsigned int BoneIndex = ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap[Name];
 
 				unsigned int IndexCount = Cluster->GetControlPointIndicesCount();
-				unsigned int* Indices = Cluster->GetControlPointIndices();
+				int* Indices = Cluster->GetControlPointIndices();
 				double* Weights = Cluster->GetControlPointWeights();
 
 				for (K = 0; K < IndexCount; K++)
@@ -1203,7 +1208,7 @@ struct TScene
 		FbxNode* FBXNode = (FbxNode*)Object;
 		FbxLight* FBXLight = (FbxLight*)FBXNode->GetNodeAttribute();
 
-		Light->LightType = FBXLight->LightType.Get();
+		Light->LightType = (TLightNode<Type>::TLightType)FBXLight->LightType.Get();
 		Light->On = FBXLight->CastLight.Get();
 		Light->Color[0] = (Type)FBXLight->Color.Get()[0];
 		Light->Color[1] = (Type)FBXLight->Color.Get()[1];
@@ -1258,7 +1263,7 @@ struct TScene
 		}
 
 		Camera->Near = (Type)FBXCamera->NearPlane.Get();
-		Camera->Up = (Type)FBXCamera->FarPlane.Get();
+		Camera->Far = (Type)FBXCamera->FarPlane.Get();
 
 		Type Eye[3], To[3], Up[3];
 
@@ -1291,12 +1296,9 @@ struct TScene
 		{
 			Up[i] = (Up[i] / Up[i]);
 		}
+		
+		//create a view matrix
 
-		Camera->ViewMatrix = {
-			Eye[0], Eye[1], Eye[2], 0,
-			Up[0], Up[1], Up[2], 0,
-			To[0], To[1], To[2], 0,
-			0, 0, 0, 1 };
 	}
 
 	TMaterial<Type>* ExtractMaterial(void* Mesh)
@@ -1384,9 +1386,9 @@ struct TScene
 					{
 						if (i < 3)
 						{
-							TinyMaterial->Ambient = Lambert->Ambient.Get()[i];
-							TinyMaterial->Diffuse = Lambert->Diffuse.Get()[i];
-							TinyMaterial->Emissive = Lambert->Emissive.Get()[i];
+							TinyMaterial->Ambient[i] = Lambert->Ambient.Get()[i];
+							TinyMaterial->Diffuse[i] = Lambert->Diffuse.Get()[i];
+							TinyMaterial->Emissive[i] = Lambert->Emissive.Get()[i];
 						}
 						else
 						{
@@ -1394,8 +1396,9 @@ struct TScene
 							TinyMaterial->Diffuse[3] = 1.0f - (Type)Lambert->TransparencyFactor.Get();
 							TinyMaterial->Emissive[3] = (Type)Lambert->EmissiveFactor.Get();
 						}
+						TinyMaterial->Specular[i] = 0;
 					}
-					TinyMaterial->Specular = 0;
+					
 				}
 
 				else
@@ -1456,7 +1459,7 @@ struct TScene
 
 	void ExtractAnimation(void* Scene)
 	{
-		FbxScene* FBXScene = (FbxScene)Scene;
+		FbxScene* FBXScene = (FbxScene*)Scene;
 
 		for (unsigned int i = 0; i < FBXScene->GetSrcObjectCount<FbxAnimStack>(); i++)
 		{
@@ -1694,7 +1697,7 @@ struct TScene
 
 				for (unsigned int k = 0; k < Skeleton->BoneCount; k++)
 				{
-					if (strncpy(Name, Skeleton->Nodes[k]->Name) == 0)
+					if (strcmp(Name, Skeleton->Nodes[k]->Name) == 0)
 					{
 						FbxVector4 Row0 = BindMatrix.GetRow(0);
 						FbxVector4 Row1 = BindMatrix.GetRow(1);
@@ -1707,22 +1710,22 @@ struct TScene
 							{
 							case 0:
 							{
-								Skeleton->BindPoses[l + (l * k)] = Row0.mData[l];
+								Skeleton->BindPoses[l][k] = (Type)Row0.mData[l];
 								break;
 							}
 							case 1:
 							{
-								Skeleton->BindPoses[l + (l * k)] = Row1.mData[l];
+								Skeleton->BindPoses[l][k] = (Type)Row1.mData[l];
 								break;
 							}
 							case 2:
 							{
-								Skeleton->BindPoses[l + (l * k)] = Row2.mData[l];
+								Skeleton->BindPoses[l][k] = (Type)Row2.mData[l];
 								break;
 							}
 							case 3:
 							{
-								Skeleton->BindPoses[l + (l * k)] = Row3.mData[l];
+								Skeleton->BindPoses[l][k] = (Type)Row3.mData[l];
 								break;
 							}
 							default:
@@ -1737,10 +1740,9 @@ struct TScene
 		}
 	}
 
-
 	unsigned int AddVertReturnIndex(std::vector<TVertex<Type>>& Vertices, const TVertex<Type>& Vertex)
 	{
-		auto Iter = std::find(Vertices.begin, Vertices.end(), Vertex);
+		auto Iter = std::find(Vertices.begin(), Vertices.end(), Vertex);
 		if (Iter != Vertices.end())
 		{
 			return Iter - Vertices.begin();
@@ -1749,9 +1751,9 @@ struct TScene
 		return Vertices.size() - 1;
 	}
 
-	void CalculateTangentBinormals(std::vector<TVertex<Type>>& Vertices, const std::vector<unsigned int>& Indices)
+	void CalculateTangentsBinormals(std::vector<TVertex<Type>>& Vertices, const std::vector<unsigned int>& Indices)
 	{
-		unsigned int VertexCount = Vertices.size();
+		/*unsigned int VertexCount = Vertices.size();
 		Type* Tan1 = new Type[VertexCount * 2];
 		Type* Tan2 = Tan1 + VertexCount;
 		memset(Tan1, 0, VertexCount * sizeof(Tan1) * 2);
@@ -1763,13 +1765,13 @@ struct TScene
 			long I2 = Indices[a + 1];
 			long I3 = Indices[a + 2];
 
-			const Type Vertex1[4] = Vertices[I1].Position;
-			const Type Vertex2[4] = Vertices[I2].Position;
-			const Type Vertex3[4] = Vertices[I3].Position;
+			Type Vertex1[4] = Vertices[I1].Position;
+			Type Vertex2[4] = Vertices[I2].Position;
+			Type Vertex3[4] = Vertices[I3].Position;
 
-			const Type UV1[2] = Vertices[I1].UV;
-			const Type UV2[2] = Vertices[I2].UV;
-			const Type UV3[3] = Vertices[I3].UV;
+			Type UV1[2] = Vertices[I1].UV;
+			Type UV2[2] = Vertices[I2].UV;
+			Type UV3[2] = Vertices[I3].UV;
 
 			Type X1 = Vertex2[0] - Vertex1[0];
 			Type X2 = Vertex3[0] - Vertex1[0];
@@ -1810,7 +1812,7 @@ struct TScene
 			Tan2[I3] += TDir;
 		}
 
-	/*	for (unsigned int a = 0; a < VertexCount; a++)
+	/ *	for (unsigned int a = 0; a < VertexCount; a++)
 		{
 			const Type Normal[4] = Vertices[a].Normal;
 			const Type Tangent[4] = Tan1[a];
@@ -1821,9 +1823,9 @@ struct TScene
 			Vertices[a].Tangent[3] = (DotProduct(CrossProduct(Normal, Tangent, Tan2[a])) < 0.0f) ? -1.0f : 1.0f;
 
 			Vertices[a].BiNormal[0]
-		}*/
+		}* /
 
-		delete[] Tan1;
+		delete[] Tan1;*/
 	}
 
 	unsigned int NodeCount(TNode<Type>* Node)
