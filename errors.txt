@@ -1,4 +1,2 @@
-/usr/bin/ld: skipping incompatible ./dependencies/FBX_SDK/2015.1/lib/gcc4/x86/debug/libfbxsdk.so when searching for -lfbxsdk
-/usr/bin/ld: skipping incompatible ./dependencies/FBX_SDK/2015.1/lib/gcc4/x86/debug/libfbxsdk.a when searching for -lfbxsdk
-/usr/bin/ld: cannot find -lfbxsdk
-collect2: error: ld returned 1 exit status
+./dependencies/FBX_SDK/2015.1/lib/gcc4/x64/debug//libfbxsdk.a(fbxutils.o): In function `fbxsdk_2015_1::FbxPathUtils::GenerateFileName(char const*, char const*)':
+(.text+0x645): warning: the use of `tempnam' is dangerous, better use `mkstemp'

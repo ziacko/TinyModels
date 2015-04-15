@@ -1208,7 +1208,7 @@ struct TScene
 		FbxNode* FBXNode = (FbxNode*)Object;
 		FbxLight* FBXLight = (FbxLight*)FBXNode->GetNodeAttribute();
 
-		Light->LightType = (TLightNode<Type>::TLightType)FBXLight->LightType.Get();
+		Light->LightType = (typename TLightNode<Type>::TLightType)FBXLight->LightType.Get();
 		Light->On = FBXLight->CastLight.Get();
 		Light->Color[0] = (Type)FBXLight->Color.Get()[0];
 		Light->Color[1] = (Type)FBXLight->Color.Get()[1];
@@ -1742,10 +1742,13 @@ struct TScene
 
 	unsigned int AddVertReturnIndex(std::vector<TVertex<Type>>& Vertices, const TVertex<Type>& Vertex)
 	{
-		auto Iter = std::find(Vertices.begin(), Vertices.end(), Vertex);
-		if (Iter != Vertices.end())
+		//auto Iter = std::find(Vertices.begin(), Vertices.end(), Vertex);
+		for (typename std::vector<TVertex<Type>>::iterator Iter = Vertices.begin(); Iter != Vertices.end(); Iter++ )
 		{
-			return Iter - Vertices.begin();
+			if(Iter != Vertices.end())
+			{
+				return Iter - Vertices.begin();
+			}
 		}
 		Vertices.push_back(Vertex);
 		return Vertices.size() - 1;
