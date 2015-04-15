@@ -5,18 +5,17 @@
 #include <vector>
 #include <map>
 #include <fbxsdk.h>
+#include <algorithm>
 
 #define PI 3.14159265359f
 #define TAU 6.28318530717958657692f
-#define HALFPI = 1.57079632679489661923f;
-#define THREEHALFPI = 4.71238898038468985769f;
+#define HALFPI 1.57079632679489661923f;
+#define THREEHALFPI 4.71238898038468985769f;
 
-#define	EPSILON = 0.00000000001f;
-#define	DEG2RAD = 0.01745329251994329577f;
-#define	RAD2DEG = 57.2957795130823208768f;
+#define	EPSILON 0.00000000001f;
+#define	DEG2RAD 0.01745329251994329577f;
+#define	RAD2DEG 57.2957795130823208768f;
 
-#define IDENTITYMATRIX = 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1;
-#define INVERTZMATRIX = 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1;
 inline int  Max(int x, int y){ return (x > y) ? x : y; }
 inline int  Min(int x, int y){ return (x < y) ? x : y; }
 inline float  Maxf(float x, float y){ return (x > y) ? x : y; }
@@ -26,6 +25,8 @@ double* MatByMat(double Mat1[16], double Mat2[16])
 {
 
 }
+
+template <typename Type> class ModelManager;
 
 
 template<typename Type>
@@ -253,7 +254,7 @@ public:
 	}
 
 	void Evaluate(const TAnimation<Type>* Animation,
-		float Time, bool Loop = true, float FPS = 24.0f)
+		float Time, bool Looping = true, float FPS = 24.0f)
 	{
 		if (Animation != nullptr)
 		{
@@ -272,9 +273,9 @@ public:
 
 			unsigned int Frame = Animation->StartFrame + (int)(FrameTime * FPS);
 
-			const TTrack* Track = nullptr;
-			const TKeyFrame* Start = nullptr;
-			const TKeyFrame* End = nullptr;
+			const TTrack<Type>* Track = nullptr;
+			const TKeyFrame<Type>* Start = nullptr;
+			const TKeyFrame<Type>* End = nullptr;
 
 			for (unsigned int i = 0; i < Animation->TrackCount;
 				i++, Track = &(Animation->Tracks[i]), Start = nullptr, End = nullptr)
@@ -303,7 +304,7 @@ public:
 					for (unsigned int j = 0; j < 4; j++)
 					{
 						Transform[j] = Start->Translation[j] * (1 - FScale) + End->Translation[j] * FScale;
-						Scale[j] = Start->Scale[j] * (1 - FScale) + End->Scale[j] * fScale;
+						Scale[j] = Start->Scale[j] * (1 - FScale) + End->Scale[j] * FScale;
 					}
 
 					FbxQuaternion QStart(Start->Rotation[0], Start->Rotation[1], Start->Rotation[2], Start->Rotation[3]);
@@ -477,7 +478,7 @@ struct TScene
 
 	TMeshNode<Type>* GetMeshByIndex(unsigned int Index)
 	{
-		TMeshNode* NewMesh = nullptr;
+		TMeshNode<Type>* NewMesh = nullptr;
 		auto MeshIter = Meshes.begin();
 		unsigned int Size = Meshes.size();
 
@@ -492,7 +493,7 @@ struct TScene
 
 	TLightNode<Type>* GetLightByIndex(unsigned int Index)
 	{
-		TLightNode* NewLight = nullptr;
+		TLightNode<Type>* NewLight = nullptr;
 		auto LightIter = Lights.begin();
 		unsigned int Size = Lights.size();
 
@@ -507,7 +508,7 @@ struct TScene
 
 	TCameraNode<Type>* GetCameraByIndex(unsigned int Index)
 	{
-		TCameraNode* NewCamera = nullptr;
+		TCameraNode<Type>* NewCamera = nullptr;
 		auto CameraIter = Cameras.begin();
 		unsigned int Size = Cameras.size();
 
@@ -522,7 +523,7 @@ struct TScene
 
 	TMaterial<Type>* GetMaterialByIndex(unsigned int Index)
 	{
-		TMaterial* NewMaterial = nullptr;
+		TMaterial<Type>* NewMaterial = nullptr;
 		auto MaterialIter = Materials.begin();
 		unsigned int Size = Materials.size();
 
@@ -537,7 +538,7 @@ struct TScene
 
 	TAnimation<Type>* GetAnimationByIndex(unsigned int Index)
 	{
-		TAnimation* NewAnimation = nullptr;
+		TAnimation<Type>* NewAnimation = nullptr;
 		auto AnimationIter = Animations.begin();
 		unsigned int Size = Animations.size();
 
@@ -824,7 +825,7 @@ struct TScene
 		TinyNode->LocalTransform[2] = Row0.mData[2];
 		TinyNode->LocalTransform[3] = Row0.mData[3];
 
-		for (int RowIter = 0; RowIter 4; RowIter++)
+		for (int RowIter = 0; RowIter = 4; RowIter++)
 		{
 			for (int i = 0; i < 4; i++)
 			{
@@ -884,14 +885,14 @@ struct TScene
 		unsigned int PolyCount = FBXMesh->GetPolygonCount();
 		FbxVector4* ControlPoints = FBXMesh->GetControlPoints();
 
-		TVertex Vertex;
+		TVertex<Type> Vertex;
 		unsigned int VertexIndex[4] = {};
 		unsigned int VertexID = 0;
 
 		for (PolyIter = 0; PolyIter < PolyCount; PolyIter++)
 		{
 			int L;
-			int PolySize = FBXMesh->GetPolygonSize();
+			int PolySize = FBXMesh->GetPolygonSize(PolyIter);
 
 			for (J = 0; J < PolySize; J++)
 			{
@@ -1158,7 +1159,7 @@ struct TScene
 					continue;
 				}
 				strncpy(Name, Cluster->GetLink()->GetName(), 255);
-				unsigned int BoneIndex = ModelManager::GetInstance()->GetImportAssistor()->BoneIndexMap[Name];
+				unsigned int BoneIndex = ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap[Name];
 
 				unsigned int IndexCount = Cluster->GetControlPointIndicesCount();
 				unsigned int* Indices = Cluster->GetControlPointIndices();
@@ -1202,7 +1203,7 @@ struct TScene
 		FbxNode* FBXNode = (FbxNode*)Object;
 		FbxLight* FBXLight = (FbxLight*)FBXNode->GetNodeAttribute();
 
-		Light->LightType = (TLightNode::LightType)FBXLight->LightType.Get();
+		Light->LightType = FBXLight->LightType.Get();
 		Light->On = FBXLight->CastLight.Get();
 		Light->Color[0] = (Type)FBXLight->Color.Get()[0];
 		Light->Color[1] = (Type)FBXLight->Color.Get()[1];
@@ -1414,7 +1415,7 @@ struct TScene
 					FbxLayerElement::eTextureDisplacement - FbxLayerElement::sTypeNonTextureStartIndex,
 				};
 
-				for (unsigned int TextureIter = 0; TextureIter < TMaterial::TextureTypes_Count; TextureIter++)
+				for (unsigned int TextureIter = 0; TextureIter < TMaterial<Type>::TextureTypes_Count; TextureIter++)
 				{
 					FbxProperty Property = Material->FindProperty(FbxLayerElement::sTextureChannelNames[textureLookup[TextureIter]]);
 					if (Property.IsValid() && Property.GetSrcObjectCount<FbxTexture>() > 0)
@@ -1461,10 +1462,10 @@ struct TScene
 		{
 			FbxAnimStack* AnimationStack = FBXScene->GetSrcObject<FbxAnimStack>(i);
 
-			TAnimation* Animation = new TAnimation();
+			TAnimation<Type>* Animation = new TAnimation<Type>();
 			strncpy(Animation->Name, AnimationStack->GetName(), 255);
 
-			std::vector<TTrack> Tracks;
+			std::vector<TTrack<Type>> Tracks;
 
 			int AnimationLayers = AnimationStack->GetMemberCount(FbxCriteria::ObjectType(FbxAnimLayer::ClassId));
 			for (unsigned int LayerIter = 0; LayerIter < AnimationLayers; LayerIter++)
@@ -1481,7 +1482,7 @@ struct TScene
 			if (Animation->TrackCount > 0)
 			{
 				Animation->Tracks = new TTrack<Type>[Animation->TrackCount];
-				memcpy(Animation->Tracks, Tracks.data(), sizeof(TTrack) * Animation->TrackCount);
+				memcpy(Animation->Tracks, Tracks.data(), sizeof(TTrack<Type>) * Animation->TrackCount);
 
 				for (unsigned int j = 0; j < Animation->TrackCount; j++)
 				{
@@ -1501,7 +1502,7 @@ struct TScene
 		FbxAnimLayer* AnimLayer = (FbxAnimLayer*)Layer;
 		FbxNode* FBXNode = (FbxNode*)Node;
 
-		TSkeleton* Skeleton = Skeletons[0];
+		TSkeleton<Type>* Skeleton = Skeletons[0];
 
 		int BoneIndex = -1;
 
@@ -1623,7 +1624,7 @@ struct TScene
 
 			if (KeyFrameTimes.size() > 0)
 			{
-				TTrack Track;
+				TTrack<Type> Track;
 
 				Track.BoneIndex = BoneIndex;
 				Track.KeyFrameCount = KeyFrameTimes.size();
@@ -1639,7 +1640,7 @@ struct TScene
 				{
 					Track.KeyFrames[Index].Key = Iter.first;
 
-					FbxAMatrix LocalMatrix = ModelManager::GetInstance()->GetImportAssistor()->Evaluator->GetNodeLocalTransform(FBXNode, Iter.second);
+					FbxAMatrix LocalMatrix = ModelManager<Type>::GetInstance()->GetImportAssistor()->Evaluator->GetNodeLocalTransform(FBXNode, Iter.second);
 
 					FbxQuaternion Rotation = LocalMatrix.GetQ();
 					FbxVector4 Translation = LocalMatrix.GetT();
@@ -1686,7 +1687,7 @@ struct TScene
 
 			for (unsigned int j = 0; j < Pose->GetCount(); j++)
 			{
-				strncpy(Name, Pose->GetNodeName().GetCurrentName(), 255);
+				strncpy(Name, Pose->GetNodeName(j).GetCurrentName(), 255);
 
 				FbxMatrix PoseMatrix = Pose->GetMatrix(j);
 				FbxMatrix BindMatrix = PoseMatrix.Inverse();
@@ -1805,8 +1806,8 @@ struct TScene
 			Tan1[I3] += SDir;
 
 			Tan2[I1] += TDir;
-			Tan2[T2] += TDir;
-			Tan2[T3] += TDir;
+			Tan2[I2] += TDir;
+			Tan2[I3] += TDir;
 		}
 
 	/*	for (unsigned int a = 0; a < VertexCount; a++)
@@ -1856,11 +1857,11 @@ struct TScene
 
 			fwrite(&Address, sizeof(unsigned int), 1, File);
 
-			fwrite(&MaterialIter->second, sizeof(TMaterial), 1, File);
+			fwrite(&MaterialIter->second, sizeof(TMaterial<Type>), 1, File);
 		}
 
 		unsigned int ObjectCount = NodeCount(Root);
-		fwrite(&ObjectCount, sizeof(unsigned int), 1 File);
+		fwrite(&ObjectCount, sizeof(unsigned int), 1, File);
 		SaveNodeData(Root, File);
 
 		ObjectCount = Skeletons.size();
@@ -1870,7 +1871,7 @@ struct TScene
 		{
 			fwrite(&Skeletons[SkeletonIter]->BoneCount, sizeof(unsigned int), 1, File);
 			fwrite(&Skeletons[SkeletonIter]->BindPoses, sizeof(Type) * 16, Skeletons[SkeletonIter].BoneCount, File);
-			fwrite(&Skeletons[SkeletonIter]->Nodes, sizeof(TNode*), Skeletons[SkeletonIter].BoneCount, File);
+			fwrite(&Skeletons[SkeletonIter]->Nodes, sizeof(TNode<Type>*), Skeletons[SkeletonIter].BoneCount, File);
 		}
 
 		ObjectCount = Animations.size();
@@ -1891,7 +1892,7 @@ struct TScene
 			{
 				fwrite(&Iter->second->Tracks[TrackIter].BoneIndex, sizeof(unsigned int), 1, File);
 				fwrite(&Iter->second->Tracks[TrackIter].KeyFrameCount, sizeof(unsigned int), 1, File);
-				fwrite(Iter->second->Tracks[TrackIter].KeyFrames, sizeof(TKeyFrame), Iter->second->Tracks[TrackIter].KeyFrameCount, File);
+				fwrite(Iter->second->Tracks[TrackIter].KeyFrames, sizeof(TKeyFrame<Type>), Iter->second->Tracks[TrackIter].KeyFrameCount, File);
 			}
 		}
 
@@ -1916,19 +1917,19 @@ struct TScene
 
 		switch (Node->NodeType)
 		{
-		case TNode::TMESH:
+		case TNode<Type>::TMESH:
 		{
 			SaveMeshData((TMeshNode<Type>*)Node, File);
 			break;
 		}
 
-		case TNode::TLIGHT:
+		case TNode<Type>::TLIGHT:
 		{
 			SaveLightData((TLightNode<Type>*)Node, File);
 			break;
 		}
 
-		case TNode::TCAMERA:
+		case TNode<Type>::TCAMERA:
 		{
 			SaveCameraData((TLightNode<Type>*)Node, File);
 			break;
@@ -2003,23 +2004,23 @@ struct TScene
 
 		unsigned int I, J = 0;
 		unsigned int Address = 0;
-		unsigned int NodeType = TNode::TNODE;
+		unsigned int NodeType = TNode<Type>::TNODE;
 
 		fread(&AmbientLight, sizeof(Type), 4, File);
 
 		unsigned int MaterialCount, NodeCount, SkeletonCount, AnimationCount = 0;
 		fread(&MaterialCount, sizeof(unsigned int), 1, File);
 
-		std::map<unsigned int, TMaterial*> MaterialMap;
-		std::map<unsigned int, TNode*> NodeMap;
+		std::map<unsigned int, TMaterial<Type>*> MaterialMap;
+		std::map<unsigned int, TNode<Type>*> NodeMap;
 
 		for (I = 0; I < MaterialCount; I++)
 		{
-			TMaterial* Material = new TMaterial();
+			TMaterial<Type>* Material = new TMaterial<Type>();
 
 			fread(&Address, sizeof(unsigned int), 1, File);
 
-			fread(&Material, sizeof(TMaterial), 1, File);
+			fread(&Material, sizeof(TMaterial<Type>), 1, File);
 
 			MaterialMap[Address] = Material;
 			Materials[Material->Name] = Material;
@@ -2035,16 +2036,16 @@ struct TScene
 		fread(&SkeletonCount, sizeof(unsigned int), 1, File);
 		for (I = 0; I < SkeletonCount; I++)
 		{
-			TSkeleton* Skeleton = new TSkeleton();
+			TSkeleton<Type>* Skeleton = new TSkeleton<Type>();
 
 			fread(&Skeleton->BoneCount, sizeof(unsigned int), 1, File);
 
 			Skeleton->BindPoses = new Type[Skeleton->BoneCount][16];
 			Skeleton->Bones = new Type[Skeleton->BoneCount][16];
-			Skeleton->Nodes = new TNode *[Skeleton->BoneCount];
+			Skeleton->Nodes = new TNode<Type> *[Skeleton->BoneCount];
 
 			fread(Skeleton->BindPoses, sizeof(Type) * 16, Skeleton->BoneCount, File);
-			fread(Skeleton->Nodes, sizeof(Node*), Skeleton->BoneCount, File);
+			fread(Skeleton->Nodes, sizeof(TNode<Type>*), Skeleton->BoneCount, File);
 
 			for (J = 0; J < Skeleton->BoneCount; J++)
 			{
@@ -2073,7 +2074,7 @@ struct TScene
 				fread(&Animation->Tracks[J].KeyFrameCount, sizeof(unsigned int), 1, File);
 
 				Animation->Tracks[J].KeyFrames = new TKeyFrame<Type>[Animation->Tracks[J].KeyFrameCount];
-				fread(Animation->Tracks[J].KeyFrames, sizeof(TKeyFrame), Animation->Tracks[J].KeyFrameCount, File);
+				fread(Animation->Tracks[J].KeyFrames, sizeof(TKeyFrame<Type>), Animation->Tracks[J].KeyFrameCount, File);
 			}
 
 			Animations[Animation->Name] = Animation;
@@ -2087,7 +2088,7 @@ struct TScene
 	{
 		unsigned int Address = 0;
 		unsigned int Parent = 0;
-		unsigned int NodeType = TNode::TNODE;
+		unsigned int NodeType = TNode<Type>::TNODE;
 
 		fread(Address, sizeof(unsigned int), 1, File);
 		fread(NodeType, sizeof(unsigned int), 1, File);
@@ -2097,40 +2098,40 @@ struct TScene
 
 		fread(&Parent, sizeof(unsigned int), 1, File);
 
-		Type LocalTransform[16] = IDENTITYMATRIX;
-		Type GlobalTransform[16] = IDENTITYMATRIX;
+		Type LocalTransform[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+		Type GlobalTransform[16] = LocalTransform;
 
 		fread(LocalTransform, sizeof(Type), 16, File);
 		fread(GlobalTransform, sizeof(Type), 16, File);
 
-		TNode* TinyNode = nullptr;
+		TNode<Type>* TinyNode = nullptr;
 
 		switch (NodeType)
 		{
-		case TNode::TNODE:
+		case TNode<Type>::TNODE:
 		{
-			TinyNode = new TNode();
+			TinyNode = new TNode<Type>();
 			break;
 		}
 
-		case TNode::TMESH:
+		case TNode<Type>::TMESH:
 		{
-			TinyNode = new TMeshNode();
-			LoadMeshData((TMeshNode*)TinyNode, MaterialMap, File);
+			TinyNode = new TMeshNode<Type>();
+			LoadMeshData((TMeshNode<Type>*)TinyNode, MaterialMap, File);
 			break;
 		}
 
-		case TNode::TLIGHT:
+		case TNode<Type>::TLIGHT:
 		{
-			TinyNode = new TLightNode();
-			LoadLightData((TLightNode*)TinyNode, File);
+			TinyNode = new TLightNode<Type>();
+			LoadLightData((TLightNode<Type>*)TinyNode, File);
 			break;
 		}
 
-		case TNode::TCAMERA:
+		case TNode<Type>::TCAMERA:
 		{
-			TinyNode = new TCameraNode();
-			LoadCameraData((TCameraNode*)TinyNode, File);
+			TinyNode = new TCameraNode<Type>();
+			LoadCameraData((TCameraNode<Type>*)TinyNode, File);
 			break;
 		}
 
@@ -2144,33 +2145,33 @@ struct TScene
 		TinyNode->GlobalTransform = GlobalTransform;
 		Nodes[Address] = TinyNode;
 
-		TinyNode->Parent = (TNode*)Parent;
+		TinyNode->Parent = (TNode<Type>*)Parent;
 
 		if (Root == nullptr)
 		{
 			Root = TinyNode;
 		}
 		
-		TinyNode->NodeType = (TNode::NodeType)NodeType;
+		TinyNode->NodeType = NodeType;
 		strncpy(TinyNode->Name, Name, 255);
 
 		switch (NodeType)
 		{
-		case TNode::TMESH:
+		case TNode<Type>::TMESH:
 		{
-			Meshes[TinyNode->Name] = (TMeshNode*)TinyNode;
+			Meshes[TinyNode->Name] = (TMeshNode<Type>*)TinyNode;
 			break;
 		}
 
-		case TNode::TLIGHT:
+		case TNode<Type>::TLIGHT:
 		{
-			Lights[TinyNode->Name] = (TLightNode*)TinyNode;
+			Lights[TinyNode->Name] = (TLightNode<Type>*)TinyNode;
 			break;
 		}
 
-		case TNode::TCAMERA:
+		case TNode<Type>::TCAMERA:
 		{
-			Cameras[TinyNode->Name] = (TCameraNode*)TinyNode;
+			Cameras[TinyNode->Name] = (TCameraNode<Type>*)TinyNode;
 			break;
 		}
 
@@ -2188,7 +2189,7 @@ struct TScene
 		for (ChildIter = 0; ChildIter < ChildCount; ChildIter++)
 		{
 			fread(&Address, sizeof(unsigned int), 1, File);
-			TinyNode->Children.push_back((TNode*)Address);
+			TinyNode->Children.push_back((TNode<Type>*)Address);
 		}
 
 		for (ChildIter = 0; ChildIter < ChildCount; ChildIter++)
@@ -2208,8 +2209,8 @@ struct TScene
 
 		if (VertexCount > 0)
 		{
-			TVertex* Vertices = new TVertex[VertexCount];
-			fread(Vertices, sizeof(TVertex), VertexCount, File);
+			TVertex<Type>* Vertices = new TVertex<Type>[VertexCount];
+			fread(Vertices, sizeof(TVertex<Type>), VertexCount, File);
 			for (unsigned int VertexIter = 0; VertexIter < VertexCount; VertexIter++)
 			{
 				Mesh->Vertices.push_back(Vertices[VertexIter]);
@@ -2237,7 +2238,7 @@ struct TScene
 	{
 		unsigned int Value = 0;
 		fread(&Value, sizeof(unsigned int), 1, File);
-		Light->LightType = (TLightNode::LightType)Value;
+		Light->LightType = Value;
 
 		Value = 0;
 		fread(&Value, sizeof(unsigned int), 1, File);
@@ -2263,7 +2264,7 @@ struct TScene
 
 	void ReLink(TNode<Type>* Node, std::map<unsigned int, TNode<Type>*>& Nodes)
 	{
-		if (Node->Parent 1 = nullptr)
+		if (Node->Parent != nullptr)
 		{
 			Node->Parent = Nodes[(unsigned int)Node->Parent];
 		}
@@ -2271,7 +2272,7 @@ struct TScene
 		for (unsigned int ChildIter = 0; ChildIter < ChildCount; ChildIter++)
 		{
 			Node->Children[ChildIter] = Nodes[(unsigned int)Node->Children[ChildIter]];
-			ReLink(Node->Children[ChildIter], nodes);
+			ReLink(Node->Children[ChildIter], Nodes);
 		}
 	}
 
