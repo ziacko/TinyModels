@@ -2,6 +2,7 @@
 
 int main()
 {
+	//ModelManager<double>::Initalize();
 	TScene<double>* Scene = new TScene<double>();
 
 	Scene->Load("resources/Dragon.fbx");

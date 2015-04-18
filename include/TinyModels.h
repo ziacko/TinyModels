@@ -6,7 +6,7 @@
 #include <map>
 #include <fbxsdk.h>
 #include <algorithm>
-
+#include <set>
 #define PI 3.14159265359f
 #define TAU 6.28318530717958657692f
 #define HALFPI 1.57079632679489661923f;
@@ -72,10 +72,10 @@ struct TMaterial
 
 	TMaterial()
 	{
-		Ambient = new Type[4];
-		Diffuse = new Type[4];
-		Specular = new Type[4];
-		Emissive =  new Type[4];
+		/*Ambient = nullptr;
+		Diffuse = nullptr;
+		Specular = nullptr;
+		Emissive = nullptr;*/
 
 		memset(Name, 0, 255);
 		memset(TextureFileNames, 0, TextureTypes_Count * 255);
@@ -83,10 +83,10 @@ struct TMaterial
 	}
 
 	char Name[255];
-	Type* Ambient;
-	Type* Diffuse;
-	Type* Specular;
-	Type* Emissive;
+	Type Ambient[4];
+	Type Diffuse[4];
+	Type Specular[4];
+	Type Emissive[4];
 
 	char TextureFileNames[TextureTypes_Count][255];
 	unsigned int TextureIDs[TextureTypes_Count];
@@ -107,7 +107,7 @@ public:
 
 	TNode() : NodeType(TNODE), Parent(nullptr), UserData(nullptr)
 	{
-		Name = 0;
+		Name = new char[255];
 		for(unsigned int TransformIter = 0; TransformIter < 4; TransformIter++)
 		{
 			LocalTransform[TransformIter * 5] = 1;
@@ -428,7 +428,8 @@ struct TScene
 {
 	TScene()
 	{
-		
+		Root = nullptr;
+		Assistor = new ImportAssistor();
 	}
 	
 	TMeshNode<Type>* GetMeshByName(const char* Name)
@@ -606,11 +607,11 @@ struct TScene
 			NewNode->GetNodeAttribute()->GetAttributeType() ==
 			FbxNodeAttribute::eSkeleton)
 		{
-			unsigned int Index = ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap.size();
+			unsigned int Index = Assistor->BoneIndexMap.size();
 
 			char Name[255];
 			strncpy(Name, NewNode->GetName(), 255);
-			ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap[Name] = Index;
+			Assistor->BoneIndexMap[Name] = Index;
 
 			for (int ChildIter = 0; ChildIter < NewNode->GetChildCount(); ChildIter++)
 			{
@@ -621,7 +622,7 @@ struct TScene
 
 	bool Load(const char* FileName)
 	{
-		if (Root)
+		if (Root != nullptr)
 		{
 			printf("Scene already loaded!\n");
 			return false;
@@ -677,7 +678,8 @@ struct TScene
 
 		if (RootNode)
 		{
-			ModelManager<Type>::GetInstance()->GetImportAssistor()->CurrentScene = Scene;
+			Assistor->CurrentScene = Scene;
+			Assistor->Evaluator = Scene->GetAnimationEvaluator();
 
 			Root = new TNode<Type>();
 			strcpy(Root->Name, "root");
@@ -706,17 +708,17 @@ struct TScene
 				ExtractObject(Root, (void*)RootNode->GetChild(Iter));
 			}
 
-			if (ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones.size() > 0)
+			if (Assistor->Bones.size() > 0)
 			{
 				TSkeleton<Type>* Skeleton = new TSkeleton<Type>();
-				Skeleton->BoneCount = ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones.size();
+				Skeleton->BoneCount = Assistor->Bones.size();
 				Skeleton->Nodes = new TNode<Type>*[Skeleton->BoneCount];
 				memset(Skeleton->Bones, 0, (sizeof(Type) * 16) * Skeleton->BoneCount);
 				memset(Skeleton->BindPoses, 0, (sizeof(Type) * 16) * Skeleton->BoneCount);
 
 				for (Iter = 0; Iter < Skeleton->BoneCount; Iter++)
 				{
-					Skeleton->Nodes[Iter] = ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones[Iter];
+					Skeleton->Nodes[Iter] = Assistor->Bones[Iter];
 					Skeleton->Bones[Iter] = Skeleton->Nodes[Iter]->LocalTransform;
 				}
 
@@ -817,8 +819,7 @@ struct TScene
 
 		Parent->Children.push_back(TinyNode);
 		TinyNode->Parent = Parent;
-
-		FbxAMatrix Local = ModelManager<Type>::GetInstance()->GetImportAssistor()->Evaluator->GetNodeLocalTransform(FBXNode);
+		FbxAMatrix Local = Assistor->Evaluator->GetNodeLocalTransform(FBXNode);
 
 		FbxVector4 Row0 = Local.GetRow(0);
 		FbxVector4 Row1 = Local.GetRow(1);
@@ -830,7 +831,7 @@ struct TScene
 		TinyNode->LocalTransform[2] = Row0.mData[2];
 		TinyNode->LocalTransform[3] = Row0.mData[3];
 
-		for (int RowIter = 0; RowIter = 4; RowIter++)
+		for (int RowIter = 0; RowIter < 4; RowIter++)
 		{
 			for (int i = 0; i < 4; i++)
 			{
@@ -872,7 +873,7 @@ struct TScene
 		//TinyNode->GlobalTransform = TinyNode->LocalTransform * Parent->GlobalTransform;
 		if (IsBone)
 		{
-			ModelManager<Type>::GetInstance()->GetImportAssistor()->Bones.push_back(TinyNode);
+			Assistor->Bones.push_back(TinyNode);
 		}
 
 		for (int Iter = 0; Iter < FBXNode->GetChildCount(); Iter++)
@@ -1071,8 +1072,8 @@ struct TScene
 							{
 								FbxVector4 normal = Normal->GetDirectArray().GetAt(ControlPointIndex);
 								Vertex.Normal[0] = (Type)normal[0];
-								Vertex.Normal[2] = (Type)normal[1];
-								Vertex.Normal[3] = (Type)normal[2];
+								Vertex.Normal[1] = (Type)normal[1];
+								Vertex.Normal[2] = (Type)normal[2];
 								break;
 							}
 							case FbxGeometryElement::eIndexToDirect:
@@ -1120,14 +1121,16 @@ struct TScene
 						}
 					}
 				}
-				VertexIndex[J] = AddVertReturnIndex(Mesh->Vertices, Vertex);
+
+				Mesh->Vertices.push_back(Vertex);
+				VertexIndex[J] = Mesh->Vertices.size() - 1;
 				VertexID++;
 			}
 			Mesh->Indices.push_back(VertexIndex[0]);
 			Mesh->Indices.push_back(VertexIndex[1]);
 			Mesh->Indices.push_back(VertexIndex[2]);
 
-			if (PolySize = 4)
+			if (PolySize == 4)
 			{
 				Mesh->Indices.push_back(VertexIndex[0]);
 				Mesh->Indices.push_back(VertexIndex[2]);
@@ -1164,7 +1167,7 @@ struct TScene
 					continue;
 				}
 				strncpy(Name, Cluster->GetLink()->GetName(), 255);
-				unsigned int BoneIndex = ModelManager<Type>::GetInstance()->GetImportAssistor()->BoneIndexMap[Name];
+				unsigned int BoneIndex = Assistor->BoneIndexMap[Name];
 
 				unsigned int IndexCount = Cluster->GetControlPointIndicesCount();
 				int* Indices = Cluster->GetControlPointIndices();
@@ -1408,20 +1411,21 @@ struct TScene
 
 				unsigned int textureLookup[] =
 				{
-					FbxLayerElement::eTextureDiffuse - FbxLayerElement::sTypeNonTextureStartIndex,
-					FbxLayerElement::eTextureAmbient - FbxLayerElement::sTypeNonTextureStartIndex,
-					FbxLayerElement::eTextureEmissive - FbxLayerElement::sTypeNonTextureStartIndex,
-					FbxLayerElement::eTextureSpecular - FbxLayerElement::sTypeNonTextureStartIndex,
-					FbxLayerElement::eTextureShininess - FbxLayerElement::sTypeNonTextureStartIndex,
-					FbxLayerElement::eTextureNormalMap - FbxLayerElement::sTypeNonTextureStartIndex,
-					FbxLayerElement::eTextureTransparency - FbxLayerElement::sTypeNonTextureStartIndex,
-					FbxLayerElement::eTextureDisplacement - FbxLayerElement::sTypeNonTextureStartIndex,
+					FbxLayerElement::eTextureDiffuse - FbxLayerElement::sTypeTextureStartIndex,
+					FbxLayerElement::eTextureAmbient - FbxLayerElement::sTypeTextureStartIndex,
+					FbxLayerElement::eTextureEmissive - FbxLayerElement::sTypeTextureStartIndex,
+					FbxLayerElement::eTextureSpecular - FbxLayerElement::sTypeTextureStartIndex,
+					FbxLayerElement::eTextureShininess - FbxLayerElement::sTypeTextureStartIndex,
+					FbxLayerElement::eTextureNormalMap - FbxLayerElement::sTypeTextureStartIndex,
+					FbxLayerElement::eTextureTransparency - FbxLayerElement::sTypeTextureStartIndex,
+					FbxLayerElement::eTextureDisplacement - FbxLayerElement::sTypeTextureStartIndex,
 				};
 
 				for (unsigned int TextureIter = 0; TextureIter < TMaterial<Type>::TextureTypes_Count; TextureIter++)
 				{
 					FbxProperty Property = Material->FindProperty(FbxLayerElement::sTextureChannelNames[textureLookup[TextureIter]]);
-					if (Property.IsValid() && Property.GetSrcObjectCount<FbxTexture>() > 0)
+					if (Property.IsValid() && 
+						Property.GetSrcObjectCount<FbxTexture>() > 0)
 					{
 						FbxFileTexture* FileTexture = FbxCast<FbxFileTexture>(Property.GetSrcObject<FbxTexture>(0));
 
@@ -1643,7 +1647,7 @@ struct TScene
 				{
 					Track.KeyFrames[Index].Key = Iter.first;
 
-					FbxAMatrix LocalMatrix = ModelManager<Type>::GetInstance()->GetImportAssistor()->Evaluator->GetNodeLocalTransform(FBXNode, Iter.second);
+					FbxAMatrix LocalMatrix = Assistor->Evaluator->GetNodeLocalTransform(FBXNode, Iter.second);
 
 					FbxQuaternion Rotation = LocalMatrix.GetQ();
 					FbxVector4 Translation = LocalMatrix.GetT();
@@ -1740,19 +1744,18 @@ struct TScene
 		}
 	}
 
-	unsigned int AddVertReturnIndex(std::vector<TVertex<Type>>& Vertices, const TVertex<Type>& Vertex)
+	/*bool VertexExists(const std::vector<TVertex<Type>>& Vertices, const TVertex<Type>& Vertex, unsigned int& Index)
 	{
-		//auto Iter = std::find(Vertices.begin(), Vertices.end(), Vertex);
-		for (typename std::vector<TVertex<Type>>::iterator Iter = Vertices.begin(); Iter != Vertices.end(); Iter++ )
+		auto Iter = std::find(std::begin(Vertices), std::begin(Vertices), Vertex);
+
+		if(Iter != Vertices.end())
 		{
-			if(Iter != Vertices.end())
-			{
-				return Iter - Vertices.begin();
-			}
+			Index = Iter - Vertices.begin();
+			return true;
 		}
-		Vertices.push_back(Vertex);
-		return Vertices.size() - 1;
-	}
+
+		return false;
+	}*/
 
 	void CalculateTangentsBinormals(std::vector<TVertex<Type>>& Vertices, const std::vector<unsigned int>& Indices)
 	{
@@ -2281,10 +2284,31 @@ struct TScene
 		}
 	}
 
+	struct ImportAssistor
+	{
+		ImportAssistor() : CurrentScene(nullptr), Evaluator(nullptr)
+		{
+			//Evaluator = new FbxAnimEvaluator();
+		}
+		~ImportAssistor()
+		{
+			Evaluator = nullptr;
+			CurrentScene = nullptr;
+		}
+
+		FbxScene* CurrentScene;
+		FbxAnimEvaluator* Evaluator;
+		std::vector<TNode<Type>*> Bones;
+
+		std::map<const char*, unsigned int> BoneIndexMap;
+	};
+
 	TNode<Type>* Root;
 
 	char* Path;
 	Type AmbientLight[4];
+
+	ImportAssistor* Assistor;
 
 	std::map<const char*, TMeshNode<Type>*> Meshes;
 	std::map<const char*, TLightNode<Type>*> Lights;
@@ -2295,34 +2319,21 @@ struct TScene
 	std::vector<TSkeleton<Type>*> Skeletons;
 };
 
-template<typename Type>
+/*template<typename Type>
 class ModelManager
 {
 public:
 
-	struct ImportAssistor
-	{
-		ImportAssistor() : Evaluator(nullptr){}
-		~ImportAssistor()
-		{
-			Evaluator = nullptr;
-		}
 
-		FbxScene* CurrentScene;
-		FbxAnimEvaluator* Evaluator;
-		std::vector<TNode<Type>*> Bones;
-
-		std::map<const char*, unsigned int> BoneIndexMap;
-	};
 
 	ModelManager()
 	{
-		ModelManager::Assistor = nullptr; 
+
 	}
 
-	ImportAssistor* GetImportAssistor()
+	ImportAssistor* GetImportAssistor
 	{
-		return Assistor;
+		return GetInstance()->Assistor;
 	}
 
 	static ModelManager* GetInstance()
@@ -2332,22 +2343,29 @@ public:
 			ModelManager::Instance = new ModelManager();
 			return ModelManager::Instance;
 		}
-		return ModelManager::Instance;
+		else
+		{
+			return ModelManager::Instance;
+		}
+	}
+
+	static void Initalize()
+	{
+		GetInstance()->Assistor = nullptr;
 	}
 
 private:
 	static ModelManager* Instance;
 	ImportAssistor* Assistor;
-	
+
 	std::map<const char*, TScene<Type>*> Scenes;
 
 	void DisplayContent(TScene<Type>* Scene);
 	void DisplayHierarchy(TScene<Type>* Scene);
 	void DisplayPose(TScene<Type>* Scene);
 	void DisplayAnimation(TScene<Type>* Scene);
-
 };
 
 template<typename Type>
-ModelManager<Type>* ModelManager<Type>::Instance = nullptr;
+ModelManager<Type>* ModelManager<Type>::Instance = nullptr;*/
 #endif
